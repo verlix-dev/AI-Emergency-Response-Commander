@@ -4,24 +4,17 @@ Sentinel AI is an emergency-response decision-support platform. It is designed t
 
 ## Milestone 1
 
-This milestone establishes the production-oriented project foundation: Next.js frontend, FastAPI backend, PostgreSQL configuration, Alembic migrations, versioned API routing, repository and service layers, and health endpoints. It intentionally excludes AI agents, computer vision, allocation, severity, planning, and simulation logic.
-
-## Run with Docker
-
-1. Copy `.env.example` to `.env` and replace the database password.
-2. Run `docker compose up --build`.
-3. Open `http://localhost:3000`. The backend health endpoint is `http://localhost:8000/api/v1/health`.
+This milestone establishes the ARES backend core infrastructure: environment configuration, database plumbing, Alembic setup, vendor-neutral LLM abstractions, structured logging, middleware, exception handling, OpenAPI configuration, and a health endpoint. It intentionally excludes database models, CRUD, repositories, business logic, AI providers, and operational decision engines.
 
 ## Run locally
 
-Backend (Python 3.12):
+Backend (Python 3.10):
 
 ```powershell
 cd backend
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -e .[dev]
-alembic upgrade head
 uvicorn app.main:app --reload
 ```
 
@@ -33,7 +26,7 @@ npm install
 npm run dev
 ```
 
-Set `DATABASE_URL` for a locally reachable PostgreSQL database when running the backend outside Docker.
+Copy `.env.example` to `.env` and provide every required environment value before starting the API.
 
 ## Layout
 

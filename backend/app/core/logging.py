@@ -13,6 +13,7 @@ class JsonFormatter(logging.Formatter):
 
 
 def configure_logging() -> None:
+    """Configure the shared structured logger once per process."""
     handler = logging.StreamHandler()
     handler.setFormatter(JsonFormatter())
     root = logging.getLogger()
@@ -21,4 +22,5 @@ def configure_logging() -> None:
 
 
 def get_logger(name: str) -> logging.Logger:
+    """Retrieve an application logger from the central configuration."""
     return logging.getLogger(name)

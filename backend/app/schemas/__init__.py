@@ -1,1 +1,1 @@
-from app.schemas.entities import *  # noqa: F403
+"""Pydantic API schemas."""

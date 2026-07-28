@@ -9,4 +9,4 @@ router = APIRouter()
 @router.get("/health", response_model=HealthResponse, status_code=status.HTTP_200_OK)
 def health_check() -> HealthResponse:
     settings = get_settings()
-    return HealthResponse(status="ok", service=settings.app_name, version=settings.app_version)
+    return HealthResponse(status="healthy", version=settings.app_version, environment=settings.environment)

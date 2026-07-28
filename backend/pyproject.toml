@@ -4,9 +4,9 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ares-backend"
-version = "0.1.0"
-description = "ARES emergency response backend foundation"
-requires-python = ">=3.12"
+version = "1.0.0"
+description = "ARES backend core infrastructure"
+requires-python = ">=3.10"
 dependencies = [
   "alembic>=1.14,<2",
   "fastapi>=0.115,<1",
@@ -27,4 +27,4 @@ testpaths = ["tests"]
 
 [tool.ruff]
 line-length = 100
-target-version = "py312"
+target-version = "py310"

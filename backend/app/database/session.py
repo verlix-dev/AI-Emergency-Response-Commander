@@ -10,6 +10,7 @@ SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False)
 
 
 def get_db_session() -> Generator[Session, None, None]:
+    """Yield a request-scoped SQLAlchemy session."""
     session = SessionLocal()
     try:
         yield session
