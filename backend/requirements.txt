@@ -1,0 +1,8 @@
+alembic>=1.14,<2
+fastapi>=0.115,<1
+pydantic-settings>=2.6,<3
+psycopg[binary]>=3.2,<4
+sqlalchemy>=2.0,<3
+uvicorn[standard]>=0.32,<1
+pytest>=8.3,<9
+httpx>=0.28,<1
