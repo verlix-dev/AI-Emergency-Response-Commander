@@ -1,3 +1,12 @@
-from app.exceptions.domain import ApplicationError, LLMProviderNotConfiguredError, NotFoundError
+from app.exceptions.domain import (
+    ApplicationError,
+    DetectorNotAvailableError,
+    ImageNotReadableError,
+    LLMProviderNotConfiguredError,
+    NotFoundError,
+)
 
-__all__ = ["ApplicationError", "LLMProviderNotConfiguredError", "NotFoundError"]
+__all__ = [
+    "ApplicationError", "DetectorNotAvailableError", "ImageNotReadableError",
+    "LLMProviderNotConfiguredError", "NotFoundError",
+]

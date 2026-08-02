@@ -1,6 +1,6 @@
 """Incident root entity."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import DateTime, Enum, Float, Index, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -8,6 +8,15 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.database.base import Base
 from app.database.mixins import UUIDPrimaryKeyMixin
 from app.models.enums import IncidentStatus
+
+
+def _utcnow() -> datetime:
+    """Return an aware timestamp with microsecond precision.
+
+    Applied client-side so that incidents created within the same second still order
+    deterministically; the database ``now()`` default only resolves to whole seconds.
+    """
+    return datetime.now(timezone.utc)
 
 
 class Incident(UUIDPrimaryKeyMixin, Base):
@@ -24,11 +33,12 @@ class Incident(UUIDPrimaryKeyMixin, Base):
     location: Mapped[str] = mapped_column(String(300), nullable=False)
     latitude: Mapped[float | None] = mapped_column(Float, nullable=True)
     longitude: Mapped[float | None] = mapped_column(Float, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, server_default=func.now(), onupdate=_utcnow)
 
     uploads: Mapped[list["Upload"]] = relationship(back_populates="incident", cascade="all, delete-orphan", lazy="selectin")
     vision_results: Mapped[list["VisionResult"]] = relationship(back_populates="incident", cascade="all, delete-orphan", lazy="selectin")
     incident_reports: Mapped[list["IncidentReport"]] = relationship(back_populates="incident", cascade="all, delete-orphan", lazy="selectin")
     action_plans: Mapped[list["ActionPlan"]] = relationship(back_populates="incident", cascade="all, delete-orphan", lazy="selectin")
     chat_history: Mapped[list["ChatHistory"]] = relationship(back_populates="incident", cascade="all, delete-orphan", lazy="selectin")
+    analyses: Mapped[list["IncidentAnalysis"]] = relationship(back_populates="incident", cascade="all, delete-orphan", lazy="selectin")

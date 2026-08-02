@@ -18,3 +18,17 @@ class LLMProviderNotConfiguredError(ApplicationError):
 
     status_code = 503
     code = "llm_provider_not_configured"
+
+
+class DetectorNotAvailableError(ApplicationError):
+    """Raised when the configured detector backend cannot be loaded."""
+
+    status_code = 503
+    code = "detector_not_available"
+
+
+class ImageNotReadableError(ApplicationError):
+    """Raised when a submitted image cannot be read or decoded."""
+
+    status_code = 400
+    code = "image_not_readable"

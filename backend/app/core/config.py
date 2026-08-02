@@ -20,6 +20,10 @@ class Settings(BaseSettings):
     max_upload_size: int
     cors_origins: list[str]
     trusted_hosts: list[str]
+    vision_detector: str = "static"
+    vision_model_path: str | None = None
+    vision_confidence_threshold: float = 0.25
+    vision_device: str | None = None
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
