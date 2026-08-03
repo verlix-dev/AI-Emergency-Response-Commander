@@ -398,11 +398,7 @@ Please open an issue before submitting major changes.
 
 ---
 
-# 📄 License
 
-MIT License
-
----
 
 <div align="center">
 
