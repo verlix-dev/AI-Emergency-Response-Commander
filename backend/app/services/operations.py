@@ -176,16 +176,15 @@ class SystemStatusService:
         )
 
     def _vision_component(self) -> ComponentHealthSchema:
-        """Report which detector backend is configured and whether it can serve."""
+        """Report whether the configured detector actually loaded and can serve.
+
+        Readiness is taken from the constructed detector rather than inferred from settings,
+        because the model path now defaults to the bundled weights: a detector can be fully
+        operational without an explicit path being configured.
+        """
         settings = get_settings()
         backend = (settings.vision_detector or "static").strip().lower()
-        if backend == "yolo" and not settings.vision_model_path:
-            return ComponentHealthSchema(
-                component="vision",
-                label="Vision Engine",
-                status=STATUS_OFFLINE,
-                detail="YOLO selected but VISION_MODEL_PATH is not set.",
-            )
+
         if backend == "static":
             return ComponentHealthSchema(
                 component="vision",
@@ -193,11 +192,37 @@ class SystemStatusService:
                 status=STATUS_DEGRADED,
                 detail="Static detector active; no model loaded.",
             )
+
+        try:
+            from app.api.dependencies import get_vision_service
+
+            detector = get_vision_service().detector
+        except Exception as exc:  # noqa: BLE001 - status must report, never propagate
+            return ComponentHealthSchema(
+                component="vision",
+                label="Vision Engine",
+                status=STATUS_OFFLINE,
+                detail=f"Detector unavailable: {type(exc).__name__}.",
+            )
+
+        is_ready = getattr(detector, "is_ready", True)
+        if not is_ready:
+            return ComponentHealthSchema(
+                component="vision",
+                label="Vision Engine",
+                status=STATUS_OFFLINE,
+                detail=getattr(detector, "load_error", None) or "Detector model failed to load.",
+            )
+
+        class_count = len(getattr(detector, "class_names", dict)() or {})
+        detail = f"Detector backend: {backend}."
+        if class_count:
+            detail = f"{detail} {class_count} classes loaded."
         return ComponentHealthSchema(
             component="vision",
             label="Vision Engine",
             status=STATUS_OPERATIONAL,
-            detail=f"Detector backend: {backend}.",
+            detail=detail,
         )
 
     def _decision_component(self) -> ComponentHealthSchema:

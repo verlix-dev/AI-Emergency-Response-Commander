@@ -5,10 +5,20 @@ parser and mapper hold logic while this module holds numbers.
 """
 
 from dataclasses import dataclass
+from pathlib import Path
 
 from app.vision.models import DetectionClass
 
 MIN_DETECTION_CONFIDENCE = 0.25
+
+# Default location of the trained detector weights, resolved relative to this package so the
+# model is found regardless of the process working directory.
+DEFAULT_MODEL_PATH = str((Path(__file__).parent / "weights" / "best.pt").resolve())
+
+# Inference defaults. Every value is overridable through application settings.
+DEFAULT_IOU_THRESHOLD = 0.45
+DEFAULT_MAX_DETECTIONS = 100
+DEFAULT_IMAGE_SIZE = 640
 
 DETECTION_CLASS_ALIASES: dict[str, DetectionClass] = {
     "person": DetectionClass.PERSON,
@@ -44,12 +54,18 @@ DETECTION_CLASS_ALIASES: dict[str, DetectionClass] = {
     "wreckage": DetectionClass.DEBRIS,
     "flood_water": DetectionClass.FLOOD_WATER,
     "floodwater": DetectionClass.FLOOD_WATER,
+    "flooded_area": DetectionClass.FLOOD_WATER,
+    "flooded_areas": DetectionClass.FLOOD_WATER,
     "water": DetectionClass.FLOOD_WATER,
     "flood": DetectionClass.FLOOD_WATER,
     "power_line": DetectionClass.POWER_LINE,
     "powerline": DetectionClass.POWER_LINE,
     "power_lines": DetectionClass.POWER_LINE,
     "electric_line": DetectionClass.POWER_LINE,
+    "traffic_incident": DetectionClass.TRAFFIC_INCIDENT,
+    "traffic_accident": DetectionClass.TRAFFIC_INCIDENT,
+    "road_accident": DetectionClass.TRAFFIC_INCIDENT,
+    "vehicle_collision": DetectionClass.TRAFFIC_INCIDENT,
 }
 
 VEHICLE_CLASSES: tuple[DetectionClass, ...] = (
@@ -95,6 +111,26 @@ class VisionMappingConfig:
 
 VISION_MAPPING_CONFIG = VisionMappingConfig()
 
+
+@dataclass(frozen=True)
+class YoloDetectorConfig:
+    """Inference parameters for the trained detector.
+
+    Held here rather than in the detector so that every tunable value in the vision pipeline
+    lives in one module. ``confidence_threshold`` gates what the model returns at all;
+    ``VisionMappingConfig`` then gates what those detections are allowed to assert.
+    """
+
+    model_path: str = DEFAULT_MODEL_PATH
+    confidence_threshold: float = MIN_DETECTION_CONFIDENCE
+    iou_threshold: float = DEFAULT_IOU_THRESHOLD
+    max_detections: int = DEFAULT_MAX_DETECTIONS
+    image_size: int = DEFAULT_IMAGE_SIZE
+    device: str | None = None
+
+
+YOLO_DETECTOR_CONFIG = YoloDetectorConfig()
+
 UNCLASSIFIED_INCIDENT_TYPE = "Unknown"
 
 INCIDENT_TYPE_RULES: tuple[tuple[str, tuple[DetectionClass, ...]], ...] = (
@@ -102,4 +138,5 @@ INCIDENT_TYPE_RULES: tuple[tuple[str, tuple[DetectionClass, ...]], ...] = (
     ("Flood", (DetectionClass.FLOOD_WATER,)),
     ("Building Fire", (DetectionClass.FIRE, DetectionClass.BUILDING)),
     ("Train Accident", (DetectionClass.TRAIN, DetectionClass.DEBRIS)),
+    ("Road Accident", (DetectionClass.TRAFFIC_INCIDENT,)),
 )

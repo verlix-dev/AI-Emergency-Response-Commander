@@ -25,6 +25,11 @@ class VisionService:
         self._parser = parser or DetectionParser()
         self._mapper = mapper or AssessmentMapper()
 
+    @property
+    def detector(self) -> BaseDetector:
+        """The detector backing this service, exposed for readiness reporting."""
+        return self._detector
+
     def analyze(self, image_path: str) -> IncidentAssessment:
         """Return the assessment implied by the detections in one image."""
         return self._mapper.map(self.detect_frame(image_path))

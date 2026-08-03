@@ -30,8 +30,8 @@ def upgrade() -> None:
         sa.Column("location", sa.String(length=300), nullable=False),
         sa.Column("latitude", sa.Float(), nullable=True),
         sa.Column("longitude", sa.Float(), nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.current_timestamp(), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.current_timestamp(), nullable=False),
     )
     op.create_index("ix_incidents_status_priority", "incidents", ["status", "priority"])
     op.create_table(
@@ -42,7 +42,7 @@ def upgrade() -> None:
         sa.Column("file_type", sa.String(length=100), nullable=False),
         sa.Column("file_path", sa.String(length=1024), nullable=False),
         sa.Column("file_size", sa.Integer(), nullable=False),
-        sa.Column("uploaded_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column("uploaded_at", sa.DateTime(timezone=True), server_default=sa.func.current_timestamp(), nullable=False),
         sa.CheckConstraint("file_size >= 0", name="ck_uploads_file_size_non_negative"),
     )
     op.create_index("ix_uploads_incident_id", "uploads", ["incident_id"])
@@ -55,7 +55,7 @@ def upgrade() -> None:
         sa.Column("boats_detected", sa.Integer(), nullable=False),
         sa.Column("collapsed_structures", sa.Integer(), nullable=False),
         sa.Column("confidence_score", sa.Float(), nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.current_timestamp(), nullable=False),
         sa.CheckConstraint("people_detected >= 0", name="ck_vision_results_people_non_negative"),
         sa.CheckConstraint("vehicles_detected >= 0", name="ck_vision_results_vehicles_non_negative"),
         sa.CheckConstraint("boats_detected >= 0", name="ck_vision_results_boats_non_negative"),
@@ -72,7 +72,7 @@ def upgrade() -> None:
         sa.Column("victim_count", sa.Integer(), nullable=True),
         sa.Column("road_status", sa.String(length=100), nullable=True),
         sa.Column("requested_resources", sa.JSON(), nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.current_timestamp(), nullable=False),
         sa.CheckConstraint("victim_count IS NULL OR victim_count >= 0", name="ck_incident_reports_victim_count_non_negative"),
     )
     op.create_index("ix_incident_reports_incident_id", "incident_reports", ["incident_id"])
@@ -85,7 +85,7 @@ def upgrade() -> None:
         sa.Column("current_location", sa.String(length=300), nullable=True),
         sa.Column("capacity", sa.Integer(), nullable=True),
         sa.Column("available", sa.Boolean(), nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.current_timestamp(), nullable=False),
         sa.CheckConstraint("capacity IS NULL OR capacity >= 0", name="ck_resources_capacity_non_negative"),
     )
     op.create_index("ix_resources_status_available", "resources", ["status", "available"])
@@ -94,7 +94,7 @@ def upgrade() -> None:
         sa.Column("id", sa.Uuid(), primary_key=True),
         sa.Column("incident_id", sa.Uuid(), sa.ForeignKey("incidents.id", ondelete="CASCADE"), nullable=False),
         sa.Column("generated_plan", sa.Text(), nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.current_timestamp(), nullable=False),
     )
     op.create_index("ix_action_plans_incident_id", "action_plans", ["incident_id"])
     op.create_table(
@@ -103,7 +103,7 @@ def upgrade() -> None:
         sa.Column("incident_id", sa.Uuid(), sa.ForeignKey("incidents.id", ondelete="CASCADE"), nullable=False),
         sa.Column("role", sa.String(length=32), nullable=False),
         sa.Column("message", sa.Text(), nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.current_timestamp(), nullable=False),
     )
     op.create_index("ix_chat_history_incident_created_at", "chat_history", ["incident_id", "created_at"])
 

@@ -5,12 +5,19 @@ parser's job, which keeps every detector adapter thin and makes the vocabulary r
 uniformly no matter which detector produced the output.
 """
 
+import threading
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
 from app.exceptions import DetectorNotAvailableError, ImageNotReadableError
+from app.vision.config import YOLO_DETECTOR_CONFIG, YoloDetectorConfig
+
+# Loaded models keyed by resolved weights path. Ultralytics models are safe to reuse across
+# calls, and loading is expensive, so each weights file is loaded at most once per process.
+_MODEL_CACHE: dict[str, Any] = {}
+_MODEL_CACHE_LOCK = threading.Lock()
 
 
 class BaseDetector(ABC):
@@ -58,53 +65,155 @@ class StaticDetector(BaseDetector):
 
 
 class UltralyticsYOLODetector(BaseDetector):
-    """Adapter over an Ultralytics YOLO model.
+    """Adapter over the trained Ultralytics YOLO model.
 
-    The Ultralytics package is imported lazily so that neither the application nor its tests
-    require the dependency until a caller actually selects this detector. Model loading is
-    deferred to the first detection and then cached.
+    The model is loaded when the detector is constructed, which happens once at startup, so the
+    first analysis request does not absorb the load cost. Loading failure does not raise from the
+    constructor: the error is retained and surfaced when detection is attempted, so a missing or
+    corrupt weights file degrades the vision subsystem without preventing the application from
+    starting or from reporting its own status.
+
+    Ultralytics is imported inside the loader so that neither the application nor its tests
+    require the dependency unless this detector is actually selected.
     """
 
     def __init__(
         self,
-        model_path: str,
-        confidence_threshold: float = 0.25,
+        config: YoloDetectorConfig = YOLO_DETECTOR_CONFIG,
+        model_path: str | None = None,
+        confidence_threshold: float | None = None,
         device: str | None = None,
     ) -> None:
-        self._model_path = model_path
-        self._confidence_threshold = confidence_threshold
-        self._device = device
+        self._config = config
+        self._model_path = model_path or config.model_path
+        self._confidence_threshold = (
+            confidence_threshold if confidence_threshold is not None else config.confidence_threshold
+        )
+        self._device = device if device is not None else config.device
         self._model: Any | None = None
+        self._load_error: str | None = None
+        self._load_model()
 
-    def _load_model(self) -> Any:
-        """Load and cache the underlying model, translating import failure into a domain error."""
+    @property
+    def is_ready(self) -> bool:
+        """Whether the model loaded successfully and inference can be attempted."""
+        return self._model is not None
+
+    @property
+    def load_error(self) -> str | None:
+        """Why the model failed to load, or ``None`` when it loaded successfully."""
+        return self._load_error
+
+    @property
+    def model_path(self) -> str:
+        """The weights file this detector was configured with."""
+        return self._model_path
+
+    def class_names(self) -> dict[int, str]:
+        """Return the model's class-index to label mapping, empty when unloaded."""
+        if self._model is None:
+            return {}
+        return dict(getattr(self._model, "names", {}) or {})
+
+    def _load_model(self) -> Any | None:
+        """Load the weights once per process, recording any failure rather than raising."""
         if self._model is not None:
             return self._model
+
+        resolved = str(Path(self._model_path).resolve())
+        cached = _MODEL_CACHE.get(resolved)
+        if cached is not None:
+            self._model = cached
+            return cached
+
+        with _MODEL_CACHE_LOCK:
+            cached = _MODEL_CACHE.get(resolved)
+            if cached is not None:
+                self._model = cached
+                return cached
+
+            if not Path(resolved).is_file():
+                self._load_error = f"Detector weights not found at {resolved}."
+                return None
+
+            try:
+                from ultralytics import YOLO
+            except ImportError:
+                self._load_error = (
+                    "The ultralytics package is not installed; YOLO detection is unavailable."
+                )
+                return None
+
+            try:
+                model = YOLO(resolved)
+            except Exception as exc:  # noqa: BLE001 - any load failure must degrade, not crash
+                self._load_error = f"Failed to load detector weights: {type(exc).__name__}: {exc}"
+                return None
+
+            _MODEL_CACHE[resolved] = model
+            self._model = model
+            self._load_error = None
+            return model
+
+    def _assert_decodable(self, image_path: str) -> None:
+        """Reject an image the decoder cannot read.
+
+        Ultralytics logs a warning and yields an empty result for an undecodable file rather
+        than raising, which would surface to the operator as "no detections" — indistinguishable
+        from a clean scene. Verifying up front turns a corrupt upload into an explicit error.
+        """
         try:
-            from ultralytics import YOLO
-        except ImportError as exc:
-            raise DetectorNotAvailableError(
-                "The ultralytics package is not installed; YOLO detection is unavailable."
+            from PIL import Image
+        except ImportError:
+            return
+
+        try:
+            with Image.open(image_path) as image:
+                image.verify()
+        except Exception as exc:
+            raise ImageNotReadableError(
+                f"The image could not be decoded: {type(exc).__name__}."
             ) from exc
-        self._model = YOLO(self._model_path)
-        return self._model
 
     def detect(self, image_path: str) -> Sequence[dict[str, Any]]:
-        """Run the model and flatten its results into raw detection dictionaries."""
+        """Run inference and flatten the results into raw detection dictionaries.
+
+        An image with no detections returns an empty sequence, which the pipeline treats as a
+        valid result rather than an error.
+        """
         if not Path(image_path).is_file():
             raise ImageNotReadableError(f"No readable image at {image_path}.")
 
+        self._assert_decodable(image_path)
+
         model = self._load_model()
-        predict_options: dict[str, Any] = {"conf": self._confidence_threshold, "verbose": False}
+        if model is None:
+            raise DetectorNotAvailableError(
+                self._load_error or "The detection model is unavailable."
+            )
+
+        predict_options: dict[str, Any] = {
+            "conf": self._confidence_threshold,
+            "iou": self._config.iou_threshold,
+            "max_det": self._config.max_detections,
+            "imgsz": self._config.image_size,
+            "verbose": False,
+        }
         if self._device is not None:
             predict_options["device"] = self._device
 
-        results = model.predict(image_path, **predict_options)
-        return [
-            detection
-            for result in results
-            for detection in self._flatten_result(result)
-        ]
+        try:
+            results = model.predict(image_path, **predict_options)
+        except (OSError, ValueError) as exc:
+            raise ImageNotReadableError(
+                f"The image could not be decoded for inference: {type(exc).__name__}."
+            ) from exc
+        except Exception as exc:
+            raise DetectorNotAvailableError(
+                f"Inference failed: {type(exc).__name__}: {exc}"
+            ) from exc
+
+        return [detection for result in results for detection in self._flatten_result(result)]
 
     def _flatten_result(self, result: Any) -> list[dict[str, Any]]:
         """Convert one Ultralytics result object into raw detection dictionaries.

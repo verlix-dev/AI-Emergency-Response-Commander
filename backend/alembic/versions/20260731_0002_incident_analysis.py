@@ -32,7 +32,7 @@ def upgrade() -> None:
         sa.Column("decision", sa.JSON(), nullable=False),
         sa.Column("resources", sa.JSON(), nullable=False),
         sa.Column("commander_brief", sa.JSON(), nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.current_timestamp(), nullable=False),
         sa.CheckConstraint("revision >= 1", name="ck_incident_analyses_revision_positive"),
         sa.CheckConstraint("severity_score >= 0 AND severity_score <= 100", name="ck_incident_analyses_severity_score_range"),
         sa.CheckConstraint("priority_score >= 0 AND priority_score <= 100", name="ck_incident_analyses_priority_score_range"),

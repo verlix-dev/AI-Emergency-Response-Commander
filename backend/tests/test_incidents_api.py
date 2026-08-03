@@ -305,13 +305,32 @@ class TestSystemStatusEndpoint:
 
         assert database["status"] == "OPERATIONAL"
 
-    def test_static_detector_reports_degraded(self, client: TestClient) -> None:
-        """The default static detector is honestly reported as not model-backed."""
-        body = client.get("/system/status").json()
-        vision = next(item for item in body["components"] if item["component"] == "vision")
+    def test_vision_status_reflects_the_configured_detector(
+        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A static detector is reported as not model-backed; a loaded model is operational.
 
-        assert vision["status"] == "DEGRADED"
-        assert body["status"] == "DEGRADED"
+        Readiness is derived from the detector that was actually built, so this assertion is
+        pinned to the configured backend rather than to whichever default happens to be set.
+        """
+        from app.core.config import get_settings
+
+        settings = get_settings()
+        monkeypatch.setattr(settings, "vision_detector", "static", raising=False)
+
+        from app.api import dependencies
+
+        dependencies.get_vision_service.cache_clear()
+        try:
+            body = client.get("/system/status").json()
+            vision = next(
+                item for item in body["components"] if item["component"] == "vision"
+            )
+
+            assert vision["status"] == "DEGRADED"
+            assert "no model loaded" in vision["detail"].lower()
+        finally:
+            dependencies.get_vision_service.cache_clear()
 
     def test_status_includes_environment_metadata(self, client: TestClient) -> None:
         body = client.get("/system/status").json()

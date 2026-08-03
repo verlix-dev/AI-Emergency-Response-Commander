@@ -29,6 +29,7 @@ from app.schemas.analysis import (
     SceneSchema,
 )
 from app.services.commander_brief import CommanderBriefGenerator
+from app.services.commander_brief_llm import CommanderBriefLLMService
 from app.vision import AssessmentMapper, DetectionClass, DetectionFrame, VisionService
 from app.vision.config import VEHICLE_CLASSES
 
@@ -49,6 +50,7 @@ class IncidentAnalysisService:
         incident_repository: IncidentRepository,
         resource_repository: ResourceRepository,
         mapper: AssessmentMapper | None = None,
+        brief_narrator: CommanderBriefLLMService | None = None,
     ) -> None:
         self._vision_service = vision_service
         self._decision_engine = decision_engine
@@ -57,6 +59,23 @@ class IncidentAnalysisService:
         self._incidents = incident_repository
         self._resources = resource_repository
         self._mapper = mapper or AssessmentMapper()
+        self._brief_narrator = brief_narrator
+
+    def _compose_brief(
+        self,
+        assessment: IncidentAssessment,
+        decision: DecisionResult,
+        allocation: AllocationResult,
+    ) -> CommanderBrief:
+        """Generate the deterministic brief, then narrate it when narration is available.
+
+        The deterministic brief is always produced first and is what gets returned if narration
+        is unconfigured, fails, or produces ungrounded text.
+        """
+        brief = self._brief_generator.generate(assessment, decision, allocation)
+        if self._brief_narrator is None or not self._brief_narrator.is_enabled:
+            return brief
+        return self._brief_narrator.narrate(brief, assessment, decision, allocation).brief
 
     def analyze_image(
         self,
@@ -71,7 +90,7 @@ class IncidentAnalysisService:
         assessment = self._mapper.map(frame)
         decision = self._decision_engine.decide(assessment)
         allocation = self._allocate(assessment, decision)
-        brief = self._brief_generator.generate(assessment, decision, allocation)
+        brief = self._compose_brief(assessment, decision, allocation)
 
         incident = self._incidents.add_incident(
             Incident(
@@ -108,7 +127,7 @@ class IncidentAnalysisService:
         assessment = self._mapper.map(frame)
         decision = self._decision_engine.decide(assessment)
         allocation = self._allocate(assessment, decision)
-        brief = self._brief_generator.generate(assessment, decision, allocation)
+        brief = self._compose_brief(assessment, decision, allocation)
 
         incident.incident_type = decision.disaster_type.value
         incident.priority = decision.priority_level.value

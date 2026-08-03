@@ -26,6 +26,7 @@ class DetectionClass(str, Enum):
     DEBRIS = "debris"
     FLOOD_WATER = "flood_water"
     POWER_LINE = "power_line"
+    TRAFFIC_INCIDENT = "traffic_incident"
 
 
 class BoundingBox(BaseModel):
